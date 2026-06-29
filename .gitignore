@@ -5,3 +5,5 @@ data/*.tmp
 .env
 .env.local
 .DS_Store
+.vercel
+.env*

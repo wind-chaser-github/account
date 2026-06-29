@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const PORT = Number(process.env.PORT || 3000);
-const ROOT = __dirname;
+const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR = path.join(ROOT, "data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 
@@ -79,10 +79,6 @@ function readBody(req) {
   });
 }
 
-function base64(buf) {
-  return Buffer.from(buf).toString("base64");
-}
-
 function parseAuth(req) {
   const header = req.headers.authorization || "";
   if (!header.startsWith("Bearer ")) return null;
@@ -90,7 +86,7 @@ function parseAuth(req) {
 }
 
 function randomToken(size = 32) {
-  return base64(crypto.randomBytes(size)).replace(/=+$/g, "");
+  return crypto.randomBytes(size).toString("base64url");
 }
 
 function nowIso() {
@@ -159,7 +155,7 @@ function serveStatic(req, res) {
     "/": "index.html",
     "/index.html": "index.html",
     "/styles.css": "styles.css",
-    "/app.js": "app.js",
+    "/app.js": "public/app.js",
   };
   if (url.pathname === "/favicon.ico") {
     res.writeHead(204, {
