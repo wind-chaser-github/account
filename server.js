@@ -318,7 +318,9 @@ async function handleCloudApi(req, res, pathname) {
 }
 
 async function main() {
-  await ensureStore();
+  if (!process.env.VERCEL) {
+    await ensureStore();
+  }
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname.startsWith("/api/")) {
