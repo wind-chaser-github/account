@@ -14,6 +14,14 @@ const DEFAULT_STORE = {
   vaults: [],
 };
 
+const CLOUD_API_HANDLERS = {
+  "/api/register": "./api/register",
+  "/api/login": "./api/login",
+  "/api/logout": "./api/logout",
+  "/api/me": "./api/me",
+  "/api/vault": "./api/vault",
+};
+
 function json(res, status, payload, headers = {}) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -299,12 +307,22 @@ async function handleApi(req, res) {
   return json(res, 404, { error: "NOT_FOUND" });
 }
 
+async function handleCloudApi(req, res, pathname) {
+  const handlerPath = CLOUD_API_HANDLERS[pathname];
+  if (!handlerPath) {
+    return json(res, 404, { error: "NOT_FOUND" });
+  }
+  const handler = require(handlerPath);
+  return handler(req, res);
+}
+
 async function main() {
   await ensureStore();
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname.startsWith("/api/")) {
-      handleApi(req, res).catch((error) => {
+      const apiHandler = process.env.VERCEL ? handleCloudApi : handleApi;
+      apiHandler(req, res, url.pathname).catch((error) => {
         console.error(error);
         json(res, 500, { error: "INTERNAL_ERROR" });
       });
