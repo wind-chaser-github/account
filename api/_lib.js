@@ -56,6 +56,7 @@ async function writeDb(db) {
   await put(DB_PATH, JSON.stringify(db, null, 2), {
     access: "private",
     allowOverwrite: true,
+    cacheControlMaxAge: 0,
     contentType: "application/json",
   });
 }
