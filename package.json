@@ -1,0 +1,13 @@
+{
+  "name": "encrypted-vault",
+  "private": true,
+  "version": "0.1.0",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.5.0"
+  }
+}
