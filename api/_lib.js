@@ -1,5 +1,5 @@
 const crypto = require("node:crypto");
-const blob = require("@vercel/blob");
+const blobStore = require("@vercel/blob");
 
 const DB_PATH = "encrypted-vault/db.json";
 const DEFAULT_DB = {
@@ -38,12 +38,12 @@ function parseBody(req) {
 }
 
 async function readDb() {
-  const { get } = blob;
-  const blob = await get(DB_PATH, { access: "private" });
-  if (!blob || blob.statusCode === 304) {
+  const { get } = blobStore;
+  const record = await get(DB_PATH, { access: "private" });
+  if (!record || record.statusCode === 304) {
     return structuredClone(DEFAULT_DB);
   }
-  const raw = await new Response(blob.stream).text();
+  const raw = await new Response(record.stream).text();
   const parsed = JSON.parse(raw || "{}");
   return {
     users: Array.isArray(parsed.users) ? parsed.users : [],
@@ -52,7 +52,7 @@ async function readDb() {
 }
 
 async function writeDb(db) {
-  const { put } = blob;
+  const { put } = blobStore;
   await put(DB_PATH, JSON.stringify(db, null, 2), {
     access: "private",
     allowOverwrite: true,
