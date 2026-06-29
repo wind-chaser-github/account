@@ -2,6 +2,7 @@ const http = require("node:http");
 const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+require("@vercel/blob");
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
