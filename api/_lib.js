@@ -1,11 +1,7 @@
 const crypto = require("node:crypto");
 const blobStore = require("@vercel/blob");
 
-const DB_PATH = "encrypted-vault/db.json";
-const DEFAULT_DB = {
-  users: [],
-  vaults: {},
-};
+const STORE_PREFIX = "encrypted-vault";
 
 function json(res, status, payload, headers = {}) {
   const body = JSON.stringify(payload);
@@ -37,28 +33,66 @@ function parseBody(req) {
   });
 }
 
-async function readDb() {
-  const { get } = blobStore;
-  const record = await get(DB_PATH, { access: "private" });
-  if (!record || record.statusCode === 304) {
-    return structuredClone(DEFAULT_DB);
-  }
-  const raw = await new Response(record.stream).text();
-  const parsed = JSON.parse(raw || "{}");
-  return {
-    users: Array.isArray(parsed.users) ? parsed.users : [],
-    vaults: parsed.vaults && typeof parsed.vaults === "object" ? parsed.vaults : {},
-  };
+function hashKey(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-async function writeDb(db) {
+async function readJson(pathname) {
+  const { get } = blobStore;
+  let record;
+  try {
+    record = await get(pathname, { access: "private" });
+  } catch (error) {
+    if (error && (error.name === "BlobNotFoundError" || String(error.message).includes("not found"))) {
+      return null;
+    }
+    throw error;
+  }
+  if (!record || record.statusCode === 304) {
+    return null;
+  }
+  const raw = await new Response(record.stream).text();
+  return JSON.parse(raw || "null");
+}
+
+async function writeJson(pathname, payload, options = {}) {
   const { put } = blobStore;
-  await put(DB_PATH, JSON.stringify(db, null, 2), {
+  await put(pathname, JSON.stringify(payload, null, 2), {
     access: "private",
-    allowOverwrite: true,
+    allowOverwrite: Boolean(options.allowOverwrite),
     cacheControlMaxAge: 0,
     contentType: "application/json",
   });
+}
+
+function userEmailPath(email) {
+  return `${STORE_PREFIX}/users/email-${hashKey(email)}.json`;
+}
+
+async function readUserByEmail(email) {
+  return readJson(userEmailPath(email));
+}
+
+async function writeUser(user) {
+  await writeJson(userEmailPath(user.email), user, { allowOverwrite: false });
+}
+
+async function writeVault(userId, vault) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const suffix = randomToken(8);
+  await writeJson(`${STORE_PREFIX}/vaults/${userId}/${stamp}-${suffix}.json`, vault, {
+    allowOverwrite: false,
+  });
+}
+
+async function readLatestVault(userId) {
+  const { list } = blobStore;
+  const prefix = `${STORE_PREFIX}/vaults/${userId}/`;
+  const result = await list({ prefix, limit: 1000 });
+  const latest = result.blobs
+    .filter((item) => item.pathname.endsWith(".json"))
+    .sort((left, right) => String(right.pathname).localeCompare(String(left.pathname)))[0];
+  return latest ? readJson(latest.pathname) : null;
 }
 
 function randomToken(size = 32) {
@@ -127,18 +161,23 @@ function bearerToken(req) {
   return header.slice(7).trim();
 }
 
-function createSessionToken(userId) {
+function createSessionToken(userId, email) {
   return createToken({
     sub: userId,
+    email,
     exp: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
     iat: new Date().toISOString(),
   });
 }
 
-function authenticate(req, db) {
+function authenticate(req) {
   const payload = verifyToken(bearerToken(req));
   if (!payload) return null;
-  return db.users.find((user) => user.id === payload.sub) || null;
+  return {
+    id: payload.sub,
+    email: payload.email || "",
+    createdAt: payload.iat,
+  };
 }
 
 function sanitizeUser(user) {
@@ -156,8 +195,10 @@ function sanitizeVault(vault) {
 module.exports = {
   json,
   parseBody,
-  readDb,
-  writeDb,
+  readUserByEmail,
+  writeUser,
+  readLatestVault,
+  writeVault,
   randomToken,
   hashPassword,
   verifyPassword,

@@ -1,7 +1,7 @@
 const {
   json,
   parseBody,
-  readDb,
+  readUserByEmail,
   verifyPassword,
   createSessionToken,
   sanitizeUser,
@@ -14,8 +14,7 @@ module.exports = async function login(req, res) {
   const body = await parseBody(req);
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
-  const db = await readDb();
-  const user = db.users.find((item) => item.email === email);
+  const user = await readUserByEmail(email);
   if (!user) {
     return json(res, 401, { error: "INVALID_CREDENTIALS" });
   }
@@ -23,7 +22,6 @@ module.exports = async function login(req, res) {
   if (!ok) {
     return json(res, 401, { error: "INVALID_CREDENTIALS" });
   }
-  const token = createSessionToken(user.id);
+  const token = createSessionToken(user.id, user.email);
   return json(res, 200, { user: sanitizeUser(user), token });
 };
-

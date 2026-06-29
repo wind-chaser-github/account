@@ -2,8 +2,8 @@ const crypto = require("node:crypto");
 const {
   json,
   parseBody,
-  readDb,
-  writeDb,
+  readUserByEmail,
+  writeUser,
   randomToken,
   hashPassword,
   createSessionToken,
@@ -20,8 +20,8 @@ module.exports = async function register(req, res) {
   if (!email || !password) {
     return json(res, 400, { error: "EMAIL_AND_PASSWORD_REQUIRED" });
   }
-  const db = await readDb();
-  if (db.users.some((user) => user.email === email)) {
+  const existingUser = await readUserByEmail(email);
+  if (existingUser) {
     return json(res, 409, { error: "ACCOUNT_EXISTS" });
   }
   const salt = randomToken(16);
@@ -34,9 +34,7 @@ module.exports = async function register(req, res) {
     hash: derived.hash,
     createdAt: new Date().toISOString(),
   };
-  db.users.push(user);
-  await writeDb(db);
-  const token = createSessionToken(user.id);
+  await writeUser(user);
+  const token = createSessionToken(user.id, user.email);
   return json(res, 201, { user: sanitizeUser(user), token });
 };
-

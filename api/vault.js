@@ -1,21 +1,20 @@
 const {
   json,
   parseBody,
-  readDb,
-  writeDb,
   authenticate,
+  readLatestVault,
   sanitizeVault,
+  writeVault,
 } = require("./_lib");
 
 module.exports = async function vault(req, res) {
-  const db = await readDb();
-  const user = authenticate(req, db);
+  const user = authenticate(req);
   if (!user) {
     return json(res, 401, { error: "UNAUTHENTICATED" });
   }
 
   if (req.method === "GET") {
-    const vaultRecord = db.vaults[user.id] || null;
+    const vaultRecord = await readLatestVault(user.id);
     return json(res, 200, { exists: Boolean(vaultRecord), vault: sanitizeVault(vaultRecord) });
   }
 
@@ -25,7 +24,7 @@ module.exports = async function vault(req, res) {
     if (!envelope || !envelope.ciphertext || !envelope.salt || !envelope.iv) {
       return json(res, 400, { error: "INVALID_VAULT_ENVELOPE" });
     }
-    db.vaults[user.id] = {
+    const vaultRecord = {
       userId: user.id,
       version: Number(envelope.version || 1),
       salt: String(envelope.salt),
@@ -34,10 +33,9 @@ module.exports = async function vault(req, res) {
       ciphertext: String(envelope.ciphertext),
       updatedAt: new Date().toISOString(),
     };
-    await writeDb(db);
-    return json(res, 200, { ok: true, vault: sanitizeVault(db.vaults[user.id]) });
+    await writeVault(user.id, vaultRecord);
+    return json(res, 200, { ok: true, vault: sanitizeVault(vaultRecord) });
   }
 
   return json(res, 405, { error: "METHOD_NOT_ALLOWED" });
 };
-
