@@ -5,6 +5,7 @@ const state = {
   user: null,
   token: localStorage.getItem("vault_token") || "",
   vaultEnvelope: null,
+  vaultEnvelopes: [],
   vault: null,
   unlocked: false,
   passphrase: "",
@@ -174,6 +175,21 @@ async function decryptVault(envelope, passphrase) {
   const cipherBytes = base64ToBytes(envelope.ciphertext);
   const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipherBytes);
   return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
+async function decryptFirstVault(envelopes, passphrase) {
+  let lastError = null;
+  for (const envelope of envelopes.filter(Boolean)) {
+    try {
+      return {
+        vault: await decryptVault(envelope, passphrase),
+        envelope,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("NO_VAULT_CANDIDATES");
 }
 
 function emptyVault() {
@@ -692,7 +708,9 @@ async function handleUnlockSubmit(event) {
   state.passphrase = passphrase;
   try {
     if (state.vaultEnvelope) {
-      state.vault = await decryptVault(state.vaultEnvelope, passphrase);
+      const unlocked = await decryptFirstVault(state.vaultEnvelopes.length ? state.vaultEnvelopes : [state.vaultEnvelope], passphrase);
+      state.vault = unlocked.vault;
+      state.vaultEnvelope = unlocked.envelope;
       state.unlocked = true;
       state.vaultMode = "locked";
       state.selectedId = state.vault.records[0]?.id || null;
@@ -806,6 +824,7 @@ async function handleLogout() {
   state.token = "";
   state.vault = null;
   state.vaultEnvelope = null;
+  state.vaultEnvelopes = [];
   state.unlocked = false;
   state.passphrase = "";
   state.selectedId = null;
@@ -846,6 +865,7 @@ async function loadVaultEnvelope() {
     });
     if (response.status === 404) {
       state.vaultEnvelope = null;
+      state.vaultEnvelopes = [];
       state.vaultMode = "empty";
       state.unlocked = false;
       state.passphrase = "";
@@ -860,6 +880,7 @@ async function loadVaultEnvelope() {
       throw new Error(payload.error || `HTTP_${response.status}`);
     }
     state.vaultEnvelope = payload.vault;
+    state.vaultEnvelopes = Array.isArray(payload.vaults) && payload.vaults.length ? payload.vaults : payload.vault ? [payload.vault] : [];
     state.vaultMode = payload.exists ? "locked" : "empty";
     state.unlocked = false;
     state.passphrase = "";
@@ -875,6 +896,7 @@ async function loadVaultEnvelope() {
       return;
     }
     state.vaultEnvelope = null;
+    state.vaultEnvelopes = [];
     state.vaultMode = "empty";
     render();
   }
@@ -922,6 +944,7 @@ async function importBackup() {
     throw new Error("INVALID_BACKUP");
   }
   state.vaultEnvelope = payload.vault;
+  state.vaultEnvelopes = [payload.vault];
   state.vaultMode = "locked";
   state.unlocked = false;
   state.passphrase = "";

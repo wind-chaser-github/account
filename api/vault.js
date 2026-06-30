@@ -2,7 +2,7 @@ const {
   json,
   parseBody,
   authenticate,
-  readLatestVault,
+  readRecentVaults,
   sanitizeVault,
   writeVault,
 } = require("./_lib");
@@ -14,8 +14,13 @@ module.exports = async function vault(req, res) {
   }
 
   if (req.method === "GET") {
-    const vaultRecord = await readLatestVault(user.id);
-    return json(res, 200, { exists: Boolean(vaultRecord), vault: sanitizeVault(vaultRecord) });
+    const vaultRecords = await readRecentVaults(user.id);
+    const vaultRecord = vaultRecords[0] || null;
+    return json(res, 200, {
+      exists: Boolean(vaultRecord),
+      vault: sanitizeVault(vaultRecord),
+      vaults: vaultRecords.map(sanitizeVault),
+    });
   }
 
   if (req.method === "PUT") {

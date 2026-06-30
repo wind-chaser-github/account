@@ -86,13 +86,20 @@ async function writeVault(userId, vault) {
 }
 
 async function readLatestVault(userId) {
+  const vaults = await readRecentVaults(userId);
+  return vaults[0] || null;
+}
+
+async function readRecentVaults(userId, limit = 20) {
   const { list } = blobStore;
   const prefix = `${STORE_PREFIX}/vaults/${userId}/`;
   const result = await list({ prefix, limit: 1000 });
   const latest = result.blobs
     .filter((item) => item.pathname.endsWith(".json"))
-    .sort((left, right) => String(right.pathname).localeCompare(String(left.pathname)))[0];
-  return latest ? readJson(latest.pathname) : null;
+    .sort((left, right) => String(right.pathname).localeCompare(String(left.pathname)))
+    .slice(0, limit);
+  const records = await Promise.all(latest.map((item) => readJson(item.pathname)));
+  return records.filter(Boolean);
 }
 
 function randomToken(size = 32) {
@@ -198,6 +205,7 @@ module.exports = {
   readUserByEmail,
   writeUser,
   readLatestVault,
+  readRecentVaults,
   writeVault,
   randomToken,
   hashPassword,
