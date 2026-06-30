@@ -2,6 +2,7 @@ const {
   json,
   parseBody,
   authenticate,
+  listVaultMetadata,
   readRecentVaults,
   sanitizeVault,
   writeVault,
@@ -14,8 +15,25 @@ module.exports = async function vault(req, res) {
   }
 
   if (req.method === "GET") {
+    const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const vaultRecords = await readRecentVaults(user.id);
     const vaultRecord = vaultRecords[0] || null;
+    if (url.searchParams.get("debug") === "1") {
+      return json(res, 200, {
+        exists: Boolean(vaultRecord),
+        count: vaultRecords.length,
+        latest: vaultRecord
+          ? {
+              updatedAt: vaultRecord.updatedAt,
+              iterations: vaultRecord.iterations,
+              saltLength: String(vaultRecord.salt || "").length,
+              ivLength: String(vaultRecord.iv || "").length,
+              ciphertextLength: String(vaultRecord.ciphertext || "").length,
+            }
+          : null,
+        blobs: await listVaultMetadata(user.id),
+      });
+    }
     return json(res, 200, {
       exists: Boolean(vaultRecord),
       vault: sanitizeVault(vaultRecord),

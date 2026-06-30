@@ -729,7 +729,8 @@ async function handleUnlockSubmit(event) {
   } catch (error) {
     console.error(error);
     state.passphrase = "";
-    state.importError = "解锁失败：请确认输入的是保险库口令，不是账号登录密码。";
+    const tried = state.vaultEnvelopes.length || (state.vaultEnvelope ? 1 : 0);
+    state.importError = `解锁失败：已尝试 ${tried} 份云端密文，当前口令无法解开。请确认口令是否含大小写、空格或输入法差异。`;
     setNotice(state.importError, "error");
   }
 }

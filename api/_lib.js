@@ -102,6 +102,21 @@ async function readRecentVaults(userId, limit = 20) {
   return records.filter(Boolean);
 }
 
+async function listVaultMetadata(userId) {
+  const { list } = blobStore;
+  const prefix = `${STORE_PREFIX}/vaults/${userId}/`;
+  const result = await list({ prefix, limit: 1000 });
+  return result.blobs
+    .filter((item) => item.pathname.endsWith(".json"))
+    .sort((left, right) => String(right.pathname).localeCompare(String(left.pathname)))
+    .map((item) => ({
+      pathname: item.pathname,
+      uploadedAt: item.uploadedAt,
+      size: item.size,
+      urlHash: hashKey(item.url || item.pathname).slice(0, 16),
+    }));
+}
+
 function randomToken(size = 32) {
   return crypto.randomBytes(size).toString("base64url");
 }
@@ -206,6 +221,7 @@ module.exports = {
   writeUser,
   readLatestVault,
   readRecentVaults,
+  listVaultMetadata,
   writeVault,
   randomToken,
   hashPassword,
