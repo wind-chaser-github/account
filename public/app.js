@@ -469,7 +469,7 @@ function renderUnlockScreen() {
   const vaultExists = Boolean(state.vaultEnvelope);
   const title = vaultExists ? "解锁本地保险库" : "创建你的第一把保险库口令";
   const description = vaultExists
-    ? "输入曾经用于加密这份云端密文的口令。服务端不会知道这段明文。"
+    ? "这里要输入保险库口令，不是账号登录密码。它只在浏览器里解密云端密文。"
     : "为新保险库设置一个强口令。之后每次登录后，都用同一口令在本地解锁。";
   return `
     <div class="unlock-wrap">
@@ -490,8 +490,14 @@ function renderUnlockScreen() {
                 <button class="secondary" type="button" data-action="logout">退出登录</button>
               </div>
             </form>
+            ${
+              vaultExists
+                ? `<div style="height: 10px"></div>
+                  <button class="danger" type="button" data-action="reset-vault">忘记口令，重置空保险库</button>`
+                : ""
+            }
             <div style="height: 10px"></div>
-            <div class="notice ${state.importError ? "error" : "info"}">${escapeHtml(state.importError || "如果你已经有导出的加密备份，也可以稍后通过同步面板导入。")}</div>
+            <div class="notice ${state.importError ? "error" : "info"}">${escapeHtml(state.importError || "保险库口令和登录密码相互独立。如果你已经有导出的加密备份，也可以稍后通过同步面板导入。")}</div>
           </div>
           <div class="panel card">
             <h3>提示</h3>
@@ -577,6 +583,7 @@ function bindUnlock() {
   const form = document.getElementById("unlock-form");
   form?.addEventListener("submit", handleUnlockSubmit);
   document.querySelector('[data-action="logout"]')?.addEventListener("click", handleLogout);
+  document.querySelector('[data-action="reset-vault"]')?.addEventListener("click", handleResetVault);
 }
 
 function bindVault() {
@@ -704,8 +711,30 @@ async function handleUnlockSubmit(event) {
   } catch (error) {
     console.error(error);
     state.passphrase = "";
-    setNotice("解锁失败。请检查口令是否正确。", "error");
+    state.importError = "解锁失败：请确认输入的是保险库口令，不是账号登录密码。";
+    setNotice(state.importError, "error");
   }
+}
+
+async function handleResetVault() {
+  const input = document.querySelector('#unlock-form input[name="passphrase"]');
+  const passphrase = String(input?.value || "");
+  if (!passphrase) {
+    state.importError = "先在输入框里填写新的保险库口令，再执行重置。";
+    setNotice(state.importError, "error");
+    return;
+  }
+  const confirmed = confirm("重置会创建一个新的空保险库。旧密文如果没有原口令将无法解密。确定继续？");
+  if (!confirmed) return;
+  state.passphrase = passphrase;
+  state.vault = emptyVault();
+  state.unlocked = true;
+  state.vaultMode = "created";
+  state.selectedId = null;
+  state.importError = "";
+  setNotice("已创建新的空保险库，正在同步。", "info");
+  render();
+  await syncVault();
 }
 
 async function handleRecordSubmit(event) {
@@ -915,4 +944,3 @@ loadSession().finally(() => {
     }
   }
 });
-
