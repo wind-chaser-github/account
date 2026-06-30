@@ -177,16 +177,24 @@ async function decryptVault(envelope, passphrase) {
   return JSON.parse(new TextDecoder().decode(plaintext));
 }
 
+function passphraseCandidates(passphrase) {
+  const cleaned = passphrase.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+  return Array.from(new Set([passphrase, cleaned].filter(Boolean)));
+}
+
 async function decryptFirstVault(envelopes, passphrase) {
   let lastError = null;
-  for (const envelope of envelopes.filter(Boolean)) {
-    try {
-      return {
-        vault: await decryptVault(envelope, passphrase),
-        envelope,
-      };
-    } catch (error) {
-      lastError = error;
+  for (const candidate of passphraseCandidates(passphrase)) {
+    for (const envelope of envelopes.filter(Boolean)) {
+      try {
+        return {
+          vault: await decryptVault(envelope, candidate),
+          envelope,
+          passphrase: candidate,
+        };
+      } catch (error) {
+        lastError = error;
+      }
     }
   }
   throw lastError || new Error("NO_VAULT_CANDIDATES");
@@ -711,6 +719,7 @@ async function handleUnlockSubmit(event) {
       const unlocked = await decryptFirstVault(state.vaultEnvelopes.length ? state.vaultEnvelopes : [state.vaultEnvelope], passphrase);
       state.vault = unlocked.vault;
       state.vaultEnvelope = unlocked.envelope;
+      state.passphrase = unlocked.passphrase;
       state.unlocked = true;
       state.vaultMode = "locked";
       state.selectedId = state.vault.records[0]?.id || null;
